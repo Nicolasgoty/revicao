@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Organizador Financeiro — Tela Inicial</title>
+  <style>
+    :root{--bg:#f4f6f8;--card:#ffffff;--accent:#2b6cb0;--muted:#6b7280}
+    *{box-sizing:border-box;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial}
+    body{margin:0;background:var(--bg);color:#0f172a;padding:28px}
+    .container{max-width:980px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 6px 24px rgba(15,23,42,0.06);margin-bottom:16px}
+    .grid{display:grid;gap:12px}
+    .cols-3{grid-template-columns:1fr 1fr 1fr}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type="number"], input[type="text"], select, textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px}
+    button{padding:10px 12px;border-radius:8px;border:0;background:var(--accent);color:white;font-weight:600;cursor:pointer}
+    .muted{color:var(--muted);font-size:13px}
+    .row{display:flex;gap:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #eef2f6;text-align:left;font-size:14px}
+    th{font-size:13px;color:var(--muted)}
+    .right{text-align:right}
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#eef6ff;color:#1e3a8a;font-weight:600;font-size:13px}
+    .controls{display:flex;gap:8px;align-items:center}
+    @media (max-width:720px){.cols-3{grid-template-columns:1fr}.row{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Organizador Financeiro — Tela Inicial</h1>
+      <div class="muted">Simples, rápido e local (dados no seu navegador)</div>
+    </header>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="muted">Receita Mensal</div>
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+            <input id="income" type="number" min="0" step="0.01" placeholder="R$ 0.00" style="width:170px" />
+            <button id="saveIncome">Salvar</button>
+            <div style="margin-left:12px" class="muted">Saldo atual: <span id="balancePill" class="pill">R$ 0,00</span></div>
+          </div>
+        </div>
+        <div class="controls">
+          <button id="exportCsv">Exportar CSV</button>
+          <button id="clearData" style="background:#e11d48">Limpar tudo</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0">Adicionar gasto</h3>
+      <div class="grid cols-3" style="align-items:end">
+        <div>
+          <label for="desc">Descrição</label>
+          <input id="desc" type="text" placeholder="Ex: Mercado, Internet, Transporte" />
+        </div>
+        <div>
+          <label for="category">Categoria</label>
+          <select id="category">
+            <option>Alimentação</option>
+            <option>Transporte</option>
+            <option>Moradia</option>
+            <option>Lazer</option>
+            <option>Saúde</option>
+            <option>Outros</option>
+          </select>
+        </div>
+        <div>
+          <label for="amount">Valor (R$)</label>
+          <input id="amount" type="number" min="0" step="0.01" placeholder="0.00" />
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:12px;align-items:center">
+        <label for="date" class="muted">Data</label>
+        <input id="date" type="date" />
+        <button id="addExpense">Adicionar Gasto</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin:0 0 12px 0">Gastos</h3>
+      <div style="overflow:auto;max-height:320px">
+        <table id="expensesTable">
+          <thead>
+            <tr><th>Descrição</th><th>Categoria</th><th>Data</th><th class="right">Valor (R$)</th><th>Ações</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+        <div class="muted">Total de gastos: <strong id="totalSpent">R$ 0,00</strong></div>
+        <div class="muted">Receita: <strong id="showIncome">R$ 0,00</strong> — Saldo restante: <strong id="remaining">R$ 0,00</strong></div>
+      </div>
+    </section>
+
+    <section class="card muted" style="text-align:center;font-size:13px">Dicas: Preencha sua receita mensal e registre cada gasto. Os dados são salvos localmente no navegador (localStorage).</section>
+  </div>
+
+  <script>
+    // Lógica JavaScript — apenas na tela inicial (conforme pedido)
+    const qs = id => document.getElementById(id);
+    let state = {income:0, expenses:[]};
+
+    function formatBR(value){
+      const n = Number(value || 0);
+      return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    }
+
+    function saveState(){
+      localStorage.setItem('fin_state_v1', JSON.stringify(state));
+      render();
+    }
+
+    function loadState(){
+      const raw = localStorage.getItem('fin_state_v1');
+      if(raw){
+        try{state = JSON.parse(raw);}catch(e){state={income:0,expenses:[]}};
+      }
+      render();
+    }
+
+    function render(){
+      qs('income').value = state.income || '';
+      qs('showIncome').textContent = formatBR(state.income);
+
+      const tbody = qs('expensesTable').querySelector('tbody');
+      tbody.innerHTML = '';
+      let total = 0;
+      state.expenses.slice().reverse().forEach((exp, idx)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(exp.desc)}</td><td>${escapeHtml(exp.category)}</td><td>${escapeHtml(exp.date||'')}</td><td class="right">${formatBR(exp.amount)}</td><td><button data-i="${state.expenses.length-1-idx}" class="del">Remover</button></td>`;
+        tbody.appendChild(tr);
+        total += Number(exp.amount || 0);
+      });
+      qs('totalSpent').textContent = formatBR(total);
+      const remaining = Number(state.income || 0) - total;
+      qs('remaining').textContent = formatBR(remaining);
+      qs('balancePill').textContent = formatBR(remaining);
+
+      // attach delete handlers
+      document.querySelectorAll('.del').forEach(btn=>btn.addEventListener('click', e=>{
+        const i = Number(e.currentTarget.getAttribute('data-i'));
+        if(!Number.isNaN(i)){
+          state.expenses.splice(i,1);
+          saveState();
+        }
+      }));
+    }
+
+    function escapeHtml(str){
+      if(!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // eventos
+    qs('saveIncome').addEventListener('click', ()=>{
+      const val = parseFloat(qs('income').value || 0);
+      if(isNaN(val) || val < 0){alert('Informe um valor de receita válido.'); return}
+      state.income = val;
+      saveState();
+    });
+
+    qs('addExpense').addEventListener('click', ()=>{
+      const desc = qs('desc').value.trim();
+      const cat = qs('category').value;
+      const amount = parseFloat(qs('amount').value || 0);
+      const date = qs('date').value || new Date().toISOString().slice(0,10);
+      if(!desc){alert('Preencha a descrição.'); return}
+      if(isNaN(amount) || amount <= 0){alert('Valor do gasto deve ser maior que zero.'); return}
+      state.expenses.push({desc,category:cat,amount:Number(amount),date});
+      // limpar campos
+      qs('desc').value='';qs('amount').value='';qs('date').value='';
+      saveState();
+    });
+
+    qs('clearData').addEventListener('click', ()=>{
+      if(confirm('Apagar todos os dados salvos localmente?')){
+        localStorage.removeItem('fin_state_v1');
+        state = {income:0,expenses:[]};
+        render();
+      }
+    });
+
+    qs('exportCsv').addEventListener('click', ()=>{
+      const rows = [['Descrição','Categoria','Data','Valor']];
+      state.expenses.forEach(e=>rows.push([e.desc,e.category,e.date,Number(e.amount).toFixed(2)]));
+      const csv = rows.map(r=>r.map(cell=>`"${String(cell).replace(/"/g,'""') }"`).join(',')).join('\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'gastos.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // inicializar
+    loadState();
+  </script>
+</body>
+</html>
