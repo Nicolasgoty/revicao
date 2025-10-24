@@ -36,20 +36,29 @@
     </header>
 
     <section class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h3 style="margin-top:0">Adicionar Renda Mensal</h3>
+      <div class="grid cols-3" style="align-items:end">
         <div>
-          <div class="muted">Receita Mensal</div>
-          <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-            <input id="income" type="number" min="0" step="0.01" placeholder="R$ 0.00" style="width:170px" />
-            <button id="saveIncome">Salvar</button>
-            <div style="margin-left:12px" class="muted">Saldo atual: <span id="balancePill" class="pill">R$ 0,00</span></div>
-          </div>
+          <label for="incomeMonth">Mês</label>
+          <input id="incomeMonth" type="month" />
         </div>
-        <div class="controls">
-          <button id="exportCsv">Exportar CSV</button>
-          <button id="clearData" style="background:#e11d48">Limpar tudo</button>
+        <div>
+          <label for="incomeValue">Valor Recebido (R$)</label>
+          <input id="incomeValue" type="number" min="0" step="0.01" placeholder="0.00" />
+        </div>
+        <div>
+          <button id="addIncome">Adicionar Renda</button>
         </div>
       </div>
+      <div style="margin-top:16px;overflow:auto;max-height:200px">
+        <table id="incomeTable">
+          <thead>
+            <tr><th>Mês</th><th class="right">Valor (R$)</th><th>Ações</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px" class="muted">Total de renda acumulada: <strong id="totalIncome">R$ 0,00</strong></div>
     </section>
 
     <section class="card">
@@ -94,17 +103,16 @@
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <div class="muted">Total de gastos: <strong id="totalSpent">R$ 0,00</strong></div>
-        <div class="muted">Receita: <strong id="showIncome">R$ 0,00</strong> — Saldo restante: <strong id="remaining">R$ 0,00</strong></div>
+        <div class="muted">Total de renda: <strong id="showIncome">R$ 0,00</strong> — Saldo restante: <strong id="remaining">R$ 0,00</strong></div>
       </div>
     </section>
 
-    <section class="card muted" style="text-align:center;font-size:13px">Dicas: Preencha sua receita mensal e registre cada gasto. Os dados são salvos localmente no navegador (localStorage).</section>
+    <section class="card muted" style="text-align:center;font-size:13px">Dicas: Registre sua renda mensal e seus gastos. Os dados são salvos localmente no navegador (localStorage).</section>
   </div>
 
   <script>
-    // Lógica JavaScript — apenas na tela inicial (conforme pedido)
     const qs = id => document.getElementById(id);
-    let state = {income:0, expenses:[]};
+    let state = {incomes:[], expenses:[]};
 
     function formatBR(value){
       const n = Number(value || 0);
@@ -112,43 +120,53 @@
     }
 
     function saveState(){
-      localStorage.setItem('fin_state_v1', JSON.stringify(state));
+      localStorage.setItem('fin_state_v2', JSON.stringify(state));
       render();
     }
 
     function loadState(){
-      const raw = localStorage.getItem('fin_state_v1');
+      const raw = localStorage.getItem('fin_state_v2');
       if(raw){
-        try{state = JSON.parse(raw);}catch(e){state={income:0,expenses:[]}};
+        try{state = JSON.parse(raw);}catch(e){state={incomes:[],expenses:[]}};
       }
       render();
     }
 
     function render(){
-      qs('income').value = state.income || '';
-      qs('showIncome').textContent = formatBR(state.income);
+      const tbodyIncome = qs('incomeTable').querySelector('tbody');
+      tbodyIncome.innerHTML = '';
+      let totalIncome = 0;
+      state.incomes.slice().reverse().forEach((inc, idx)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${inc.month}</td><td class="right">${formatBR(inc.value)}</td><td><button data-i="${state.incomes.length-1-idx}" class="delIncome">Remover</button></td>`;
+        tbodyIncome.appendChild(tr);
+        totalIncome += Number(inc.value || 0);
+      });
+      qs('totalIncome').textContent = formatBR(totalIncome);
 
-      const tbody = qs('expensesTable').querySelector('tbody');
-      tbody.innerHTML = '';
-      let total = 0;
+      const tbodyExp = qs('expensesTable').querySelector('tbody');
+      tbodyExp.innerHTML = '';
+      let totalExp = 0;
       state.expenses.slice().reverse().forEach((exp, idx)=>{
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(exp.desc)}</td><td>${escapeHtml(exp.category)}</td><td>${escapeHtml(exp.date||'')}</td><td class="right">${formatBR(exp.amount)}</td><td><button data-i="${state.expenses.length-1-idx}" class="del">Remover</button></td>`;
-        tbody.appendChild(tr);
-        total += Number(exp.amount || 0);
+        tr.innerHTML = `<td>${escapeHtml(exp.desc)}</td><td>${escapeHtml(exp.category)}</td><td>${escapeHtml(exp.date||'')}</td><td class="right">${formatBR(exp.amount)}</td><td><button data-i="${state.expenses.length-1-idx}" class="delExpense">Remover</button></td>`;
+        tbodyExp.appendChild(tr);
+        totalExp += Number(exp.amount || 0);
       });
-      qs('totalSpent').textContent = formatBR(total);
-      const remaining = Number(state.income || 0) - total;
-      qs('remaining').textContent = formatBR(remaining);
-      qs('balancePill').textContent = formatBR(remaining);
+      qs('totalSpent').textContent = formatBR(totalExp);
+      qs('showIncome').textContent = formatBR(totalIncome);
+      qs('remaining').textContent = formatBR(totalIncome - totalExp);
 
-      // attach delete handlers
-      document.querySelectorAll('.del').forEach(btn=>btn.addEventListener('click', e=>{
+      document.querySelectorAll('.delExpense').forEach(btn=>btn.addEventListener('click', e=>{
         const i = Number(e.currentTarget.getAttribute('data-i'));
-        if(!Number.isNaN(i)){
-          state.expenses.splice(i,1);
-          saveState();
-        }
+        state.expenses.splice(i,1);
+        saveState();
+      }));
+
+      document.querySelectorAll('.delIncome').forEach(btn=>btn.addEventListener('click', e=>{
+        const i = Number(e.currentTarget.getAttribute('data-i'));
+        state.incomes.splice(i,1);
+        saveState();
       }));
     }
 
@@ -157,11 +175,14 @@
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
-    // eventos
-    qs('saveIncome').addEventListener('click', ()=>{
-      const val = parseFloat(qs('income').value || 0);
-      if(isNaN(val) || val < 0){alert('Informe um valor de receita válido.'); return}
-      state.income = val;
+    qs('addIncome').addEventListener('click', ()=>{
+      const month = qs('incomeMonth').value;
+      const value = parseFloat(qs('incomeValue').value || 0);
+      if(!month){alert('Selecione o mês.');return;}
+      if(isNaN(value)||value<=0){alert('Informe um valor de renda válido.');return;}
+      state.incomes.push({month,value:Number(value)});
+      qs('incomeMonth').value='';
+      qs('incomeValue').value='';
       saveState();
     });
 
@@ -173,29 +194,10 @@
       if(!desc){alert('Preencha a descrição.'); return}
       if(isNaN(amount) || amount <= 0){alert('Valor do gasto deve ser maior que zero.'); return}
       state.expenses.push({desc,category:cat,amount:Number(amount),date});
-      // limpar campos
       qs('desc').value='';qs('amount').value='';qs('date').value='';
       saveState();
     });
 
-    qs('clearData').addEventListener('click', ()=>{
-      if(confirm('Apagar todos os dados salvos localmente?')){
-        localStorage.removeItem('fin_state_v1');
-        state = {income:0,expenses:[]};
-        render();
-      }
-    });
-
-    qs('exportCsv').addEventListener('click', ()=>{
-      const rows = [['Descrição','Categoria','Data','Valor']];
-      state.expenses.forEach(e=>rows.push([e.desc,e.category,e.date,Number(e.amount).toFixed(2)]));
-      const csv = rows.map(r=>r.map(cell=>`"${String(cell).replace(/"/g,'""') }"`).join(',')).join('\n');
-      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'gastos.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    });
-
-    // inicializar
     loadState();
   </script>
 </body>
