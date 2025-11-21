@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizador Financeiro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Organizador Financeiro</h1>
+
+        <section class="rendas">
+            <h2>Rendas Mensais</h2>
+            <input type="number" id="rendaValor" placeholder="Valor da renda">
+            <input type="month" id="rendaMes">
+            <button id="addRenda">Adicionar Renda</button>
+
+            <table id="rendaTabela">
+                <thead>
+                    <tr><th>Mês</th><th>Valor</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <p id="totalRenda"></p>
+        </section>
+
+        <section class="gastos">
+            <h2>Gastos</h2>
+            <input type="text" id="gastoDesc" placeholder="Descrição">
+            <input type="number" id="gastoValor" placeholder="Valor">
+            <input type="date" id="gastoData">
+            <button id="addGasto">Adicionar Gasto</button>
+
+            <table id="gastoTabela">
+                <thead>
+                    <tr><th>Data</th><th>Descrição</th><th>Valor</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <p id="totalGasto"></p>
+        </section>
+
+        <section class="saldo">
+            <h2>Saldo</h2>
+            <p id="saldoRestante"></p>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
