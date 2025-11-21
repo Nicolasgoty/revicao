@@ -1,54 +1,75 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organizador Financeiro</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Organizador Financeiro</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div class="container">
-        <h1>Organizador Financeiro</h1>
+  <main class="app">
+    <header class="topbar">
+      <h1>Organizador Financeiro</h1>
+      <p class="subtitle">Controle suas rendas, gastos e veja gráficos — tudo offline</p>
+    </header>
 
-        <section class="rendas">
-            <h2>Rendas Mensais</h2>
-            <input type="number" id="rendaValor" placeholder="Valor da renda">
-            <input type="month" id="rendaMes">
-            <button id="addRenda">Adicionar Renda</button>
+    <section class="cards">
+      <div class="card form-card">
+        <h2>Adicionar Renda</h2>
+        <div class="row">
+          <input id="mesRenda" type="month" />
+          <input id="valorRenda" type="number" step="0.01" placeholder="Valor (R$)" />
+          <button id="btnAddRenda" class="btn">Adicionar</button>
+        </div>
+        <ul id="listaRendas" class="list"></ul>
+      </div>
 
-            <table id="rendaTabela">
-                <thead>
-                    <tr><th>Mês</th><th>Valor</th></tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+      <div class="card form-card">
+        <h2>Adicionar Gasto</h2>
+        <div class="row">
+          <input id="dataGasto" type="date" />
+          <input id="descGasto" type="text" placeholder="Descrição" />
+          <input id="valorGasto" type="number" step="0.01" placeholder="Valor (R$)" />
+          <button id="btnAddGasto" class="btn">Adicionar</button>
+        </div>
+        <ul id="listaGastos" class="list"></ul>
+      </div>
+    </section>
 
-            <p id="totalRenda"></p>
-        </section>
+    <section class="summary-row">
+      <div class="card summary-card">
+        <h3>Total Rendas</h3>
+        <div id="totalRenda" class="big">R$ 0,00</div>
+      </div>
+      <div class="card summary-card">
+        <h3>Total Gastos</h3>
+        <div id="totalGasto" class="big">R$ 0,00</div>
+      </div>
+      <div class="card summary-card">
+        <h3>Saldo</h3>
+        <div id="saldoValor" class="big">R$ 0,00</div>
+      </div>
+    </section>
 
-        <section class="gastos">
-            <h2>Gastos</h2>
-            <input type="text" id="gastoDesc" placeholder="Descrição">
-            <input type="number" id="gastoValor" placeholder="Valor">
-            <input type="date" id="gastoData">
-            <button id="addGasto">Adicionar Gasto</button>
+    <section class="card charts-card">
+      <h2>Gráficos</h2>
+      <div class="chart-controls">
+        <button id="btnGrafRenda" class="btn outline">Rendas</button>
+        <button id="btnGrafGasto" class="btn outline">Gastos</button>
+        <button id="btnGrafSaldo" class="btn outline">Saldo por Mês</button>
+      </div>
+      <canvas id="grafico" height="160"></canvas>
+    </section>
 
-            <table id="gastoTabela">
-                <thead>
-                    <tr><th>Data</th><th>Descrição</th><th>Valor</th></tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+    <footer class="footer">
+      <small>Dados armazenados localmente no seu navegador (IndexedDB).</small>
+    </footer>
+  </main>
 
-            <p id="totalGasto"></p>
-        </section>
-
-        <section class="saldo">
-            <h2>Saldo</h2>
-            <p id="saldoRestante"></p>
-        </section>
-    </div>
-
-    <script src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

@@ -1,161 +1,235 @@
-// --- CONFIGURAÇÃO DO BANCO ---
-let db;
-const request = indexedDB.open("FinanceDB", 1);
+/* script.js - IndexedDB + UI + Chart.js */
 
-request.onupgradeneeded = function (event) {
-    db = event.target.result;
+// ---- utilidades ----
+const $ = id => document.getElementById(id);
+const formatBR = v => Number(v || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 
-    if (!db.objectStoreNames.contains("rendas")) {
-        db.createObjectStore("rendas", { keyPath: "id", autoIncrement: true });
+// ---- estado ----
+let db = null;
+let graficoAtivo = null;
+
+// ---- iniciar DB ----
+const DB_NAME = 'financeiroDB_v2';
+const DB_VERSION = 1;
+const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+req.onupgradeneeded = function(e){
+  db = e.target.result;
+  if(!db.objectStoreNames.contains('rendas')){
+    db.createObjectStore('rendas',{ keyPath:'id', autoIncrement:true });
+  }
+  if(!db.objectStoreNames.contains('gastos')){
+    db.createObjectStore('gastos',{ keyPath:'id', autoIncrement:true });
+  }
+};
+
+req.onsuccess = function(e){
+  db = e.target.result;
+  setupUI();
+  refreshAll();
+};
+
+req.onerror = function(){ alert('Erro ao abrir IndexedDB.'); };
+
+// ---- helpers Promise para ler store ----
+function getAllFrom(storeName){
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readonly');
+    const store = tx.objectStore(storeName);
+    const r = store.getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+function addTo(storeName, obj){
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readwrite');
+    const store = tx.objectStore(storeName);
+    const r = store.add(obj);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+function delFrom(storeName, id){
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeName,'readwrite');
+    const store = tx.objectStore(storeName);
+    const r = store.delete(id);
+    r.onsuccess = () => resolve();
+    r.onerror = () => reject(r.error);
+  });
+}
+
+// ---- UI: evento botões ----
+function setupUI(){
+  $('btnAddRenda').addEventListener('click', async ()=>{
+    const mes = $('mesRenda').value;
+    const valor = parseFloat($('valorRenda').value);
+    if(!mes || !valor || Number.isNaN(valor)){ return alert('Preencha mês e valor corretamente.'); }
+    await addTo('rendas',{ mes, valor });
+    $('mesRenda').value=''; $('valorRenda').value='';
+    refreshAll();
+  });
+
+  $('btnAddGasto').addEventListener('click', async ()=>{
+    const data = $('dataGasto').value;
+    const desc = $('descGasto').value.trim();
+    const valor = parseFloat($('valorGasto').value);
+    if(!data || !desc || !valor || Number.isNaN(valor)){ return alert('Preencha data, descrição e valor.'); }
+    await addTo('gastos',{ data, desc, valor });
+    $('dataGasto').value=''; $('descGasto').value=''; $('valorGasto').value='';
+    refreshAll();
+  });
+
+  // delegação para remoção (listas)
+  $('listaRendas').addEventListener('click', async (ev)=>{
+    if(ev.target && ev.target.dataset && ev.target.dataset.action === 'del-renda'){
+      const id = Number(ev.target.dataset.id);
+      if(confirm('Remover esta renda?')){ await delFrom('rendas', id); refreshAll(); }
     }
+  });
 
-    if (!db.objectStoreNames.contains("gastos")) {
-        db.createObjectStore("gastos", { keyPath: "id", autoIncrement: true });
+  $('listaGastos').addEventListener('click', async (ev)=>{
+    if(ev.target && ev.target.dataset && ev.target.dataset.action === 'del-gasto'){
+      const id = Number(ev.target.dataset.id);
+      if(confirm('Remover este gasto?')){ await delFrom('gastos', id); refreshAll(); }
     }
-};
+  });
 
-request.onsuccess = function (event) {
-    db = event.target.result;
-    carregarRendas();
-    carregarGastos();
-};
-
-request.onerror = function () {
-    alert("Erro ao abrir o banco de dados.");
-};
-
-
-// --- FUNÇÕES PARA RENDAS ---
-function adicionarRenda() {
-    const valor = Number(document.getElementById("rendaValor").value);
-    const mes = document.getElementById("rendaMes").value;
-
-    if (!valor || !mes) return alert("Preencha os campos!");
-
-    const tx = db.transaction("rendas", "readwrite");
-    const store = tx.objectStore("rendas");
-
-    store.add({ mes, valor });
-
-    tx.oncomplete = carregarRendas;
+  // botões gráficos
+  $('btnGrafRenda').addEventListener('click', gerarGraficoRendas);
+  $('btnGrafGasto').addEventListener('click', gerarGraficoGastos);
+  $('btnGrafSaldo').addEventListener('click', gerarGraficoSaldoPorMes);
 }
 
-document.getElementById("addRenda").onclick = adicionarRenda;
-
-
-function carregarRendas() {
-    const tabela = document.querySelector("#rendaTabela tbody");
-    tabela.innerHTML = "";
-
-    let total = 0;
-
-    const tx = db.transaction("rendas", "readonly");
-    const store = tx.objectStore("rendas");
-
-    store.openCursor().onsuccess = function (event) {
-        const cursor = event.target.result;
-        if (cursor) {
-            const item = cursor.value;
-
-            tabela.innerHTML += `
-                <tr>
-                    <td>${item.mes}</td>
-                    <td>R$ ${item.valor.toFixed(2)}</td>
-                </tr>
-            `;
-
-            total += item.valor;
-
-            cursor.continue();
-        } else {
-            document.getElementById("totalRenda").innerText =
-                "Total de Rendas: R$ " + total.toFixed(2);
-
-            calcularSaldo();
-        }
-    };
+// ---- atualizar tudo ----
+async function refreshAll(){
+  await Promise.all([renderRendas(), renderGastos(), atualizarResumo()]);
+  // destrói gráfico se existir para evitar render duplicado
+  if(graficoAtivo){ graficoAtivo.destroy(); graficoAtivo = null; }
 }
 
-
-// --- FUNÇÕES PARA GASTOS ---
-function adicionarGasto() {
-    const desc = document.getElementById("gastoDesc").value;
-    const valor = Number(document.getElementById("gastoValor").value);
-    const data = document.getElementById("gastoData").value;
-
-    if (!desc || !valor || !data) return alert("Preencha todos os campos!");
-
-    const tx = db.transaction("gastos", "readwrite");
-    const store = tx.objectStore("gastos");
-
-    store.add({ desc, valor, data });
-
-    tx.oncomplete = carregarGastos;
+// ---- render renda ----
+async function renderRendas(){
+  const arr = await getAllFrom('rendas');
+  const ul = $('listaRendas');
+  ul.innerHTML = '';
+  arr.sort((a,b)=> a.mes < b.mes ? 1 : -1); // mostrar mais recentes primeiro
+  for(const r of arr){
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="item-left">
+        <strong>${r.mes}</strong>
+        <span class="muted">${formatBR(r.valor)}</span>
+      </div>
+      <div class="item-actions">
+        <button data-action="del-renda" data-id="${r.id}" title="Remover">🗑</button>
+      </div>
+    `;
+    ul.appendChild(li);
+  }
+  $('totalRenda').innerText = formatBR(arr.reduce((s,x)=>s + Number(x.valor||0),0));
 }
 
-document.getElementById("addGasto").onclick = adicionarGasto;
-
-
-function carregarGastos() {
-    const tabela = document.querySelector("#gastoTabela tbody");
-    tabela.innerHTML = "";
-
-    let total = 0;
-
-    const tx = db.transaction("gastos", "readonly");
-    const store = tx.objectStore("gastos");
-
-    store.openCursor().onsuccess = function (event) {
-        const cursor = event.target.result;
-        if (cursor) {
-            const item = cursor.value;
-
-            tabela.innerHTML += `
-                <tr>
-                    <td>${item.data}</td>
-                    <td>${item.desc}</td>
-                    <td>R$ ${item.valor.toFixed(2)}</td>
-                </tr>
-            `;
-
-            total += item.valor;
-            cursor.continue();
-        } else {
-            document.getElementById("totalGasto").innerText =
-                "Total de Gastos: R$ " + total.toFixed(2);
-
-            calcularSaldo();
-        }
-    };
+// ---- render gastos ----
+async function renderGastos(){
+  const arr = await getAllFrom('gastos');
+  const ul = $('listaGastos');
+  ul.innerHTML = '';
+  arr.sort((a,b)=> a.data < b.data ? 1 : -1);
+  for(const g of arr){
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="item-left">
+        <strong>${g.desc}</strong>
+        <span class="muted">${g.data} • ${formatBR(g.valor)}</span>
+      </div>
+      <div class="item-actions">
+        <button data-action="del-gasto" data-id="${g.id}" title="Remover">🗑</button>
+      </div>
+    `;
+    ul.appendChild(li);
+  }
+  $('totalGasto').innerText = formatBR(arr.reduce((s,x)=>s + Number(x.valor||0),0));
 }
 
+// ---- resumo saldo ----
+async function atualizarResumo(){
+  const [rendas, gastos] = await Promise.all([getAllFrom('rendas'), getAllFrom('gastos')]);
+  const totalR = rendas.reduce((s,x)=> s + Number(x.valor||0), 0);
+  const totalG = gastos.reduce((s,x)=> s + Number(x.valor||0), 0);
+  $('totalRenda').innerText = formatBR(totalR);
+  $('totalGasto').innerText = formatBR(totalG);
+  $('saldoValor').innerText = formatBR(totalR - totalG);
+}
 
-// --- SALDO ---
-function calcularSaldo() {
-    let totalR = 0;
-    let totalG = 0;
+// ---- GRÁFICOS ----
+function criarGrafico(labels, valores, titulo, tipo='bar'){
+  const ctx = document.getElementById('grafico').getContext('2d');
+  if(graficoAtivo) graficoAtivo.destroy();
+  graficoAtivo = new Chart(ctx, {
+    type: tipo,
+    data: {
+      labels,
+      datasets: [{
+        label: titulo,
+        data: valores,
+        backgroundColor: labels.map((_,i)=> `rgba(37,99,235, ${0.6 - (i*0.02)})`),
+        borderColor: labels.map(()=> 'rgba(37,99,235,0.9)'),
+        borderWidth:1
+      }]
+    },
+    options: {
+      responsive:true,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ beginAtZero:true, ticks:{callback: v => formatBR(v)} } }
+    }
+  });
+}
 
-    const tx1 = db.transaction("rendas", "readonly");
-    tx1.objectStore("rendas").openCursor().onsuccess = function (event) {
-        const cursor = event.target.result;
-        if (cursor) {
-            totalR += cursor.value.valor;
-            cursor.continue();
-        }
-    };
+async function gerarGraficoRendas(){
+  const arr = await getAllFrom('rendas');
+  if(!arr.length){ alert('Nenhuma renda registrada.'); return; }
+  // ordenar por mês ascendente para gráfico (mes string 'YYYY-MM')
+  arr.sort((a,b)=> a.mes.localeCompare(b.mes));
+  const labels = arr.map(r => r.mes);
+  const valores = arr.map(r => Number(r.valor || 0));
+  criarGrafico(labels, valores, 'Rendas por Mês', 'bar');
+}
 
-    const tx2 = db.transaction("gastos", "readonly");
-    tx2.objectStore("gastos").openCursor().onsuccess = function (event) {
-        const cursor = event.target.result;
-        if (cursor) {
-            totalG += cursor.value.valor;
-            cursor.continue();
-        }
-    };
+async function gerarGraficoGastos(){
+  const arr = await getAllFrom('gastos');
+  if(!arr.length){ alert('Nenhum gasto registrado.'); return; }
+  // agrupar gastos por data (ou mostrar cada registro)
+  // aqui mostra cada registro (data - desc) como label (cuidado com muitos pontos)
+  const labels = arr.map(g => `${g.data}\n${g.desc}`);
+  const valores = arr.map(g => Number(g.valor || 0));
+  criarGrafico(labels, valores, 'Gastos (por registro)', 'bar');
+}
 
-    tx2.oncomplete = function () {
-        const saldo = totalR - totalG;
-        document.getElementById("saldoRestante").innerText =
-            "Saldo Restante: R$ " + saldo.toFixed(2);
-    };
+async function gerarGraficoSaldoPorMes(){
+  // soma rendas e gastos por mês (mês YYYY-MM)
+  const [rendas, gastos] = await Promise.all([getAllFrom('rendas'), getAllFrom('gastos')]);
+
+  // preparar mapa por mês
+  const map = new Map();
+
+  for(const r of rendas){
+    const m = r.mes;
+    map.set(m, (map.get(m) || 0) + Number(r.valor || 0));
+  }
+
+  for(const g of gastos){
+    // converter data 'YYYY-MM-DD' -> mês 'YYYY-MM'
+    const m = (g.data || '').slice(0,7);
+    map.set(m, (map.get(m) || 0) - Number(g.valor || 0));
+  }
+
+  const labels = Array.from(map.keys()).sort();
+  const valores = labels.map(l => map.get(l) || 0);
+
+  if(!labels.length){ alert('Sem dados para gráfico de saldo.'); return; }
+  criarGrafico(labels, valores, 'Saldo por Mês', 'line');
 }
